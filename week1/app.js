@@ -1,3 +1,4 @@
+// app.js (fixed)
 (() => {
   const MODEL_URL = "https://api-inference.huggingface.co/models/siebert/sentiment-roberta-large-english";
 
@@ -31,12 +32,59 @@
     els.errorBox.textContent = "";
   }
 
+  // --- TSV loading helpers (robust against 404s on GitHub Pages) ---
+  function getTSVPathCandidates() {
+    const urlParamOverride = new URLSearchParams(location.search).get("tsv");
+    if (urlParamOverride) {
+      return [urlParamOverride];
+    }
+
+    // Compute current directory (works on GitHub Pages project sites like /user/repo/)
+    const path = location.pathname;
+    const dir = path.endsWith("/") ? path : path.substring(0, path.lastIndexOf("/") + 1);
+
+    // Try the most common relative locations
+    const candidates = [
+      "reviews_test.tsv",
+      "./reviews_test.tsv",
+      "data/reviews_test.tsv",
+      "./data/reviews_test.tsv",
+      // Explicitly anchored to current directory (important on GH Pages)
+      dir + "reviews_test.tsv",
+      dir + "data/reviews_test.tsv",
+    ];
+
+    // Deduplicate while preserving order
+    const seen = new Set();
+    return candidates.filter(p => (seen.has(p) ? false : (seen.add(p), true)));
+  }
+
+  async function tryFetchFirstAvailable(paths) {
+    const attempts = [];
+    for (const p of paths) {
+      try {
+        setStatus("loading", `Loading ${p}…`);
+        const res = await fetch(p, { cache: "no-store" });
+        if (!res.ok) {
+          attempts.push(`${p} → HTTP ${res.status}`);
+          continue;
+        }
+        const text = await res.text();
+        return { text, path: p, attempts };
+      } catch (e) {
+        attempts.push(`${p} → ${e.message || "network error"}`);
+      }
+    }
+    const err = attempts.length ? `All TSV fetch attempts failed:\n• ${attempts.join("\n• ")}` : "Could not fetch TSV.";
+    throw new Error(err);
+  }
+  // --- end TSV helpers ---
+
   async function loadTSV() {
     setStatus("loading", "Loading reviews_test.tsv…");
     try {
-      const res = await fetch("reviews_test.tsv", { cache: "no-store" });
-      if (!res.ok) throw new Error(`Failed to fetch reviews_test.tsv (HTTP ${res.status})`);
-      const tsvText = await res.text();
+      const candidates = getTSVPathCandidates();
+      const { text: tsvText, path: usedPath, attempts } = await tryFetchFirstAvailable(candidates);
 
       const parsed = Papa.parse(tsvText, {
         header: true,
@@ -52,13 +100,17 @@
       }
 
       const rows = Array.isArray(parsed.data) ? parsed.data : [];
-      reviews = rows.map(r => (r && typeof r.text === "string" ? r.text.trim() : ""))
-                    .filter(Boolean);
+      reviews = rows.map(r => (r && typeof r.text === "string" ? r.text.trim() : "")).filter(Boolean);
 
-      if (!reviews.length) throw new Error("No reviews found. Ensure the TSV has a 'text' column with content.");
+      if (!reviews.length) {
+        const extra = attempts && attempts.length ? `\nTried:\n- ${attempts.join("\n- ")}` : "";
+        throw new Error("No reviews found. Ensure the TSV has a 'text' column with content." + extra);
+      }
 
-      setStatus("ready", `Loaded ${reviews.length} reviews. Click “Analyze Random Review”.`);
+      const msg = `Loaded ${reviews.length} reviews from “${usedPath}”. Click “Analyze Random Review”.`;
+      setStatus("ready", msg);
       els.analyzeBtn.disabled = false;
+      clearError();
     } catch (e) {
       setStatus("", "Failed to load TSV.");
       els.analyzeBtn.disabled = true;
@@ -81,7 +133,6 @@
   }
 
   function classifyFromHFOutput(payload) {
-    // Expected: [[{label:'POSITIVE', score: number}, {label:'NEGATIVE', score:number}]]
     if (!Array.isArray(payload) || !Array.isArray(payload[0])) return { state: "neutral", label: "NEUTRAL", score: 0 };
     const arr = payload[0].filter(x => x && typeof x.label === "string" && typeof x.score === "number");
     if (!arr.length) return { state: "neutral", label: "NEUTRAL", score: 0 };
@@ -102,9 +153,8 @@
       body: JSON.stringify({ inputs: reviewText }),
     });
 
-    // Handle common transient statuses (e.g., model loading or rate limiting)
     if (res.status === 503) {
-      throw new Error("Model is loading on Hugging Face. Please retry in a moment.");
+      throw new Error("Model is loading on Hugging Face. Please retry.");
     }
     if (res.status === 429) {
       throw new Error("Rate limit reached. Add a valid API token or wait and try again.");
@@ -122,7 +172,7 @@
   async function onAnalyzeClick() {
     clearError();
     if (!reviews.length) {
-      showError("Reviews not loaded. Please check reviews_test.tsv.");
+      showError("Reviews not loaded. Please ensure reviews_test.tsv is present.");
       return;
     }
     const reviewText = pickRandom(reviews);
@@ -136,9 +186,8 @@
     try {
       const result = await analyze(reviewText, els.token.value);
       setIcon(result.state);
-      const pretty = result.score ? `Score: ${result.score.toFixed(4)}` : "";
       els.resultText.textContent = result.label;
-      els.scoreText.textContent = pretty;
+      els.scoreText.textContent = result.score ? `Score: ${result.score.toFixed(4)}` : "";
       setStatus("ready", "Analysis complete.");
     } catch (e) {
       showError(e.message || String(e));

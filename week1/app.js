@@ -1,4 +1,5 @@
 // app.js (fixed)
+ // Hugging Face Inference API call
 (() => {
   const MODEL_URL = "https://api-inference.huggingface.co/models/siebert/sentiment-roberta-large-english";
 
@@ -58,7 +59,7 @@
     const seen = new Set();
     return candidates.filter(p => (seen.has(p) ? false : (seen.add(p), true)));
   }
-
+// failure - handling 
   async function tryFetchFirstAvailable(paths) {
     const attempts = [];
     for (const p of paths) {
@@ -85,7 +86,8 @@
     try {
       const candidates = getTSVPathCandidates();
       const { text: tsvText, path: usedPath, attempts } = await tryFetchFirstAvailable(candidates);
-
+      
+// Data handling via Papa Parse and TSV file
       const parsed = Papa.parse(tsvText, {
         header: true,
         delimiter: "\t",
@@ -98,7 +100,7 @@
         console.warn("Papa Parse errors:", parsed.errors);
         showError(`Parsing warning: ${firstErr.message} at row ${firstErr.row}`);
       }
-
+// extract reviews
       const rows = Array.isArray(parsed.data) ? parsed.data : [];
       reviews = rows.map(r => (r && typeof r.text === "string" ? r.text.trim() : "")).filter(Boolean);
 
@@ -117,7 +119,7 @@
       showError(e.message || String(e));
     }
   }
-
+// picking random review and displaying it
   function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
   }
@@ -131,13 +133,14 @@
     els.resultIcon.classList.add(cls);
     els.resultIcon.innerHTML = `<i class="fa-solid ${icon}"></i>`;
   }
-
+// parsing of API response 
   function classifyFromHFOutput(payload) {
     if (!Array.isArray(payload) || !Array.isArray(payload[0])) return { state: "neutral", label: "NEUTRAL", score: 0 };
     const arr = payload[0].filter(x => x && typeof x.label === "string" && typeof x.score === "number");
     if (!arr.length) return { state: "neutral", label: "NEUTRAL", score: 0 };
     arr.sort((a, b) => b.score - a.score);
     const top = arr[0];
+// Classification of review via icon
     if (top.score > 0.5 && top.label.toUpperCase().includes("POSITIVE")) return { state: "positive", label: "POSITIVE", score: top.score };
     if (top.score > 0.5 && top.label.toUpperCase().includes("NEGATIVE")) return { state: "negative", label: "NEGATIVE", score: top.score };
     return { state: "neutral", label: "NEUTRAL", score: top.score };
@@ -168,7 +171,7 @@
     const data = await res.json();
     return classifyFromHFOutput(data);
   }
-
+//validation of reviews
   async function onAnalyzeClick() {
     clearError();
     if (!reviews.length) {
@@ -182,7 +185,8 @@
     setIcon("neutral");
     els.analyzeBtn.disabled = true;
     setStatus("loading", "Calling Hugging Face Inference API…");
-
+    
+// User input (Hugging face API token)
     try {
       const result = await analyze(reviewText, els.token.value);
       setIcon(result.state);

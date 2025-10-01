@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Analyzer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --primary: #1a237e;
+            --secondary: #283593;
+            --accent: #3949ab;
+            --text: #e8eaf6;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+        
+        .review-display {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            min-height: 80px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #303f9f;
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .result-card {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .result-emoji {
+            font-size: 3em;
+            margin: 10px 0;
+        }
+        
+        .stats {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .token-input {
+            margin-top: 20px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--text);
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            animation: spin 1s linear infinite;
+            font-size: 2em;
+        }
+        
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            color: #ff6b6b;
+            text-align: center;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-chart-line"></i> Review Analyzer</h1>
+        
+        <div class="review-display" id="reviewDisplay">
+            Click "Load Random Review" to start analysis
+        </div>
+        
+        <div class="controls">
+            <button id="loadReviewBtn">
+                <i class="fas fa-random"></i> Load Random Review
+            </button>
+            <button id="sentimentBtn" disabled>
+                <i class="fas fa-smile"></i> Analyze Sentiment
+            </button>
+            <button id="nounsBtn" disabled>
+                <i class="fas fa-list"></i> Count Nouns
+            </button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"><i class="fas fa-spinner"></i></div>
+            <div>Processing with AI...</div>
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="results">
+            <div class="result-card">
+                <h3>Sentiment Analysis</h3>
+                <div class="result-emoji" id="sentimentResult">-</div>
+                <div id="sentimentText">Not analyzed</div>
+            </div>
+            <div class="result-card">
+                <h3>Noun Count</h3>
+                <div class="result-emoji" id="nounsResult">-</div>
+                <div id="nounsText">Not analyzed</div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <h3>Statistical Validation</h3>
+            <div id="validationStats">No validation data yet</div>
+        </div>
+        
+        <div class="token-input">
+            <label for="apiToken">Hugging Face API Token (optional):</label>
+            <input type="password" id="apiToken" placeholder="Enter your token for better rate limits">
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
